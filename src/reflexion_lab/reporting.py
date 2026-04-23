@@ -20,11 +20,55 @@ def failure_breakdown(records: list[RunRecord]) -> dict:
     grouped: dict[str, Counter] = defaultdict(Counter)
     for record in records:
         grouped[record.agent_type][record.failure_mode] += 1
+        grouped["overall"][record.failure_mode] += 1
     return {agent: dict(counter) for agent, counter in grouped.items()}
 
 def build_report(records: list[RunRecord], dataset_name: str, mode: str = "mock") -> ReportPayload:
-    examples = [{"qid": r.qid, "agent_type": r.agent_type, "gold_answer": r.gold_answer, "predicted_answer": r.predicted_answer, "is_correct": r.is_correct, "attempts": r.attempts, "failure_mode": r.failure_mode, "reflection_count": len(r.reflections)} for r in records]
-    return ReportPayload(meta={"dataset": dataset_name, "mode": mode, "num_records": len(records), "agents": sorted({r.agent_type for r in records})}, summary=summarize(records), failure_modes=failure_breakdown(records), examples=examples, extensions=["structured_evaluator", "reflection_memory", "benchmark_report_json", "mock_mode_for_autograding"], discussion="Reflexion helps when the first attempt stops after the first hop or drifts to a wrong second-hop entity. The tradeoff is higher attempts, token cost, and latency. In a real report, students should explain when the reflection memory was useful, which failure modes remained, and whether evaluator quality limited gains.")
+    examples = [
+        {
+            "qid": r.qid,
+            "agent_type": r.agent_type,
+            "gold_answer": r.gold_answer,
+            "predicted_answer": r.predicted_answer,
+            "is_correct": r.is_correct,
+            "attempts": r.attempts,
+            "failure_mode": r.failure_mode,
+            "reflection_count": len(r.reflections),
+            "token_estimate": r.token_estimate,
+            "latency_ms": r.latency_ms,
+        }
+        for r in records
+    ]
+    return ReportPayload(
+        meta={
+            "dataset": dataset_name,
+            "mode": mode,
+            "num_records": len(records),
+            "num_examples": len({r.qid for r in records}),
+            "agents": sorted({r.agent_type for r in records}),
+        },
+        summary=summarize(records),
+        failure_modes=failure_breakdown(records),
+        examples=examples,
+        extensions=[
+            "structured_evaluator",
+            "reflection_memory",
+            "benchmark_report_json",
+            "adaptive_max_attempts",
+            "memory_compression",
+            "actual_api_token_usage",
+        ],
+        discussion=(
+            "This benchmark compares a single-pass ReAct baseline with a Reflexion agent that stores concise "
+            "lessons after failed attempts and feeds the compressed memory into the next actor call. The evaluator "
+            "returns a structured 0/1 judgment while the final EM score is checked with normalized gold-answer "
+            "matching, so the report can separate incomplete multi-hop reasoning, entity drift, and wrong final "
+            "answers. Token totals are taken from provider usage fields when the LLM API returns them; if a provider "
+            "omits usage, each trace marks the local fallback explicitly. Reflexion costs more latency and tokens "
+            "when it needs retries, but it can recover from answers that stop after only one hop or drift to an "
+            "ungrounded entity."
+        ),
+    )
 
 def save_report(report: ReportPayload, out_dir: str | Path) -> tuple[Path, Path]:
     out_dir = Path(out_dir)
@@ -50,7 +94,7 @@ def save_report(report: ReportPayload, out_dir: str | Path) -> tuple[Path, Path]
 |---|---:|---:|---:|
 | EM | {react.get('em', 0)} | {reflexion.get('em', 0)} | {delta.get('em_abs', 0)} |
 | Avg attempts | {react.get('avg_attempts', 0)} | {reflexion.get('avg_attempts', 0)} | {delta.get('attempts_abs', 0)} |
-| Avg token estimate | {react.get('avg_token_estimate', 0)} | {reflexion.get('avg_token_estimate', 0)} | {delta.get('tokens_abs', 0)} |
+| Avg tokens | {react.get('avg_token_estimate', 0)} | {reflexion.get('avg_token_estimate', 0)} | {delta.get('tokens_abs', 0)} |
 | Avg latency (ms) | {react.get('avg_latency_ms', 0)} | {reflexion.get('avg_latency_ms', 0)} | {delta.get('latency_abs', 0)} |
 
 ## Failure modes
