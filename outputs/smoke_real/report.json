@@ -1,0 +1,80 @@
+{
+  "meta": {
+    "dataset": "hotpot_100.json",
+    "mode": "real_llm",
+    "num_records": 2,
+    "num_examples": 1,
+    "agents": [
+      "react",
+      "reflexion"
+    ]
+  },
+  "summary": {
+    "react": {
+      "count": 1,
+      "em": 0.0,
+      "avg_attempts": 1,
+      "avg_token_estimate": 455,
+      "avg_latency_ms": 5461
+    },
+    "reflexion": {
+      "count": 1,
+      "em": 0.0,
+      "avg_attempts": 1,
+      "avg_token_estimate": 454,
+      "avg_latency_ms": 4392
+    },
+    "delta_reflexion_minus_react": {
+      "em_abs": 0.0,
+      "attempts_abs": 0,
+      "tokens_abs": -1,
+      "latency_abs": -1069
+    }
+  },
+  "failure_modes": {
+    "react": {
+      "entity_drift": 1
+    },
+    "overall": {
+      "entity_drift": 2
+    },
+    "reflexion": {
+      "entity_drift": 1
+    }
+  },
+  "examples": [
+    {
+      "qid": "5a8b57f25542995d1e6f1371",
+      "agent_type": "react",
+      "gold_answer": "yes",
+      "predicted_answer": "No, there are no other short answers available in this question bank. Please try another question or contact us if you need more help with this question.",
+      "is_correct": false,
+      "attempts": 1,
+      "failure_mode": "entity_drift",
+      "reflection_count": 0,
+      "token_estimate": 455,
+      "latency_ms": 5461
+    },
+    {
+      "qid": "5a8b57f25542995d1e6f1371",
+      "agent_type": "reflexion",
+      "gold_answer": "yes",
+      "predicted_answer": "Yes, Scott Derrickson's birthplace is United States while Edward Davis Wood Jr.'s birthplace is not specified on any reliable sources. Therefore, it cannot be concluded that they are from the same country or nationality.",
+      "is_correct": false,
+      "attempts": 1,
+      "failure_mode": "entity_drift",
+      "reflection_count": 0,
+      "token_estimate": 454,
+      "latency_ms": 4392
+    }
+  ],
+  "extensions": [
+    "structured_evaluator",
+    "reflection_memory",
+    "benchmark_report_json",
+    "adaptive_max_attempts",
+    "memory_compression",
+    "actual_api_token_usage"
+  ],
+  "discussion": "This benchmark compares a single-pass ReAct baseline with a Reflexion agent that stores concise lessons after failed attempts and feeds the compressed memory into the next actor call. The evaluator returns a structured 0/1 judgment while the final EM score is checked with normalized gold-answer matching, so the report can separate incomplete multi-hop reasoning, entity drift, and wrong final answers. Token totals are taken from provider usage fields when the LLM API returns them; if a provider omits usage, each trace marks the local fallback explicitly. Reflexion costs more latency and tokens when it needs retries, but it can recover from answers that stop after only one hop or drift to an ungrounded entity."
+}
